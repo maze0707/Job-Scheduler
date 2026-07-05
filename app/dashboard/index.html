@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Scheduler Console</title>
+  <link rel="stylesheet" href="/dashboard/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Job Scheduler Console</h1>
+      <p class="subtitle">Distributed Job Scheduler Dashboard</p>
+      <p class="subtitle">Manage organizations, projects, queues, and jobs through the live FastAPI backend.</p>
+    </div>
+    <div class="topbar-actions">
+      <span id="authBanner" class="badge">Not signed in</span>
+      <button id="logoutButton" type="button" hidden>Logout</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card auth-card">
+      <div class="card-title-row">
+        <h2>Sign in</h2>
+        <span class="pill">Authentication</span>
+      </div>
+      <form id="loginForm" class="stack">
+        <label>
+          Email
+          <input id="loginEmail" name="username" type="email" autocomplete="email" required />
+        </label>
+        <label>
+          Password
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">Sign in</button>
+      </form>
+
+      <form id="signupForm" class="stack" hidden>
+        <label>
+          Email
+          <input id="signupEmail" name="email" type="email" autocomplete="email" required />
+        </label>
+        <label>
+          Password
+          <input id="signupPassword" name="password" type="password" autocomplete="new-password" required />
+        </label>
+        <button type="submit">Create account</button>
+      </form>
+
+      <div class="switch-row">
+        <button type="button" id="showLoginButton" class="link-button">Login</button>
+        <button type="button" id="showSignupButton" class="link-button">Create account</button>
+      </div>
+      <p id="authStatus" class="status">Use the form above to sign in and load the backend data.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>Dashboard overview</h2>
+        <span id="lastUpdated" class="pill">Waiting for data</span>
+      </div>
+      <div class="inline-actions" style="margin-bottom: 10px;">
+        <button id="cleanupButton" type="button">Clear demo data</button>
+      </div>
+      <div class="stats-grid">
+        <article class="stat-card">
+          <h3>Health</h3>
+          <pre id="healthSummary">{}</pre>
+        </article>
+        <article class="stat-card">
+          <h3>Queues</h3>
+          <pre id="queuesSummary">{}</pre>
+        </article>
+        <article class="stat-card">
+          <h3>Jobs</h3>
+          <pre id="jobsSummary">{}</pre>
+        </article>
+        <article class="stat-card">
+          <h3>Workers</h3>
+          <pre id="workersSummary">{}</pre>
+        </article>
+        <article class="stat-card">
+          <h3>Executions</h3>
+          <pre id="executionsSummary">{}</pre>
+        </article>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>Organizations</h2>
+        <span class="pill">/api/users/organizations</span>
+      </div>
+      <form id="orgForm" class="stack compact-form">
+        <label>
+          Organization name
+          <input id="orgNameInput" required />
+        </label>
+        <button type="submit">Create organization</button>
+      </form>
+      <div id="orgList" class="resource-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>Projects</h2>
+        <span class="pill">/api/users/projects</span>
+      </div>
+      <form id="projectForm" class="stack compact-form">
+        <label>
+          Project name
+          <input id="projectNameInput" required />
+        </label>
+        <label>
+          Organization
+          <select id="projectOrgSelect" required></select>
+        </label>
+        <button type="submit">Create project</button>
+      </form>
+      <div id="projectList" class="resource-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>Queues</h2>
+        <span class="pill">/api/queues</span>
+      </div>
+      <form id="queueForm" class="stack compact-form">
+        <label>
+          Queue name
+          <input id="queueNameInput" required />
+        </label>
+        <label>
+          Project
+          <select id="queueProjectSelect" required></select>
+        </label>
+        <label>
+          Priority
+          <input id="queuePriorityInput" type="number" min="1" value="1" />
+        </label>
+        <label>
+          Concurrency
+          <input id="queueConcurrencyInput" type="number" min="1" value="5" />
+        </label>
+        <label>
+          Retry count
+          <input id="queueRetryInput" type="number" min="0" value="3" />
+        </label>
+        <label>
+          Retry strategy
+          <select id="queueRetryStrategyInput">
+            <option value="FIXED">FIXED</option>
+            <option value="LINEAR">LINEAR</option>
+            <option value="EXPONENTIAL">EXPONENTIAL</option>
+          </select>
+        </label>
+        <button type="submit">Create queue</button>
+      </form>
+      <div id="queueList" class="resource-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-title-row">
+        <h2>Jobs</h2>
+        <span class="pill">/api/jobs</span>
+      </div>
+      <form id="jobForm" class="stack compact-form">
+        <label>
+          Queue
+          <select id="jobQueueSelect" required></select>
+        </label>
+        <label>
+          Payload JSON
+          <textarea id="jobPayloadInput" rows="4" required>{"task":"demo"}</textarea>
+        </label>
+        <label>
+          Run at (optional)
+          <input id="jobRunAtInput" type="datetime-local" />
+        </label>
+        <label>
+          Cron expression (optional)
+          <input id="jobCronInput" />
+        </label>
+        <label>
+          Priority (optional)
+          <input id="jobPriorityInput" type="number" min="0" />
+        </label>
+        <button type="submit">Create job</button>
+      </form>
+
+      <form id="batchJobForm" class="stack compact-form">
+        <label>
+          Batch payload JSON array
+          <textarea id="batchPayloadInput" rows="4" required>[{"task":1},{"task":2}]</textarea>
+        </label>
+        <label>
+          Queue
+          <select id="batchQueueSelect" required></select>
+        </label>
+        <button type="submit">Create batch jobs</button>
+      </form>
+      <div id="jobList" class="resource-list"></div>
+    </section>
+  </main>
+
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>
