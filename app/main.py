@@ -1,11 +1,14 @@
 import logging
 import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
-from app.database import Base, engine
+from app.auth import get_current_user
+from app.database import Base, SessionLocal, engine
+from app.models import User
 from app.routers import dashboard, jobs, queues, users
 
 # Automatically spin up DB tables in Docker on boot
@@ -15,7 +18,7 @@ logger = logging.getLogger("scheduler_api")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Distributed Job Scheduler Engine", version="1.0.0")
+app = FastAPI(title="Distributed Job Scheduler Engine")
 
 
 @app.middleware("http")
@@ -69,6 +72,20 @@ app.mount("/dashboard", StaticFiles(directory="app/dashboard"), name="dashboard_
 @app.get("/dashboard")
 def dashboard_index():
     return FileResponse("app/dashboard/index.html")
+
+
+@app.get("/api/v1/metrics")
+def metrics(current_user: User = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        rows = db.execute(text("SELECT status, COUNT(*) AS count FROM jobs GROUP BY status")).all()
+        counts = {str(status).upper(): int(count) for status, count in rows if status is not None}
+        return {
+            "job_status_counts": counts,
+            "total_jobs": sum(counts.values()),
+        }
+    finally:
+        db.close()
 
 
 @app.get("/")

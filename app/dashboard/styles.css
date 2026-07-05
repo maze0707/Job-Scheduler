@@ -58,7 +58,7 @@ button { cursor: pointer; }
 }
 
 .brand-mark {
-  width: 48px;
+  width: 64px;
   height: 48px;
   border-radius: 14px;
   background: linear-gradient(135deg, #ffd166, #ff8fb1);

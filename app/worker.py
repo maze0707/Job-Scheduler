@@ -13,7 +13,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import DeadLetterJob, Job, JobExecution, JobStatus, RetryStrategy, WorkerHeartbeat, WorkerRegistration
+from app.models import DeadLetterJob, Job, JobExecution, JobLog, JobStatus, RetryStrategy, WorkerHeartbeat, WorkerRegistration
 
 SHUTDOWN_SIGNALED = False
 
@@ -240,6 +240,15 @@ class WorkerRuntime:
         finally:
             db.close()
 
+    def _append_execution_log(self, db: Session, execution: JobExecution | None, message: str) -> None:
+        if not execution:
+            return
+        if execution.logs:
+            execution.logs = f"{execution.logs}\n{message}"
+        else:
+            execution.logs = message
+        db.add(JobLog(job_execution_id=execution.id, message=message, created_at=utcnow()))
+
     def _upsert_execution_start(self, db: Session, job_id: int) -> JobExecution:
         execution = (
             db.query(JobExecution)
@@ -255,6 +264,7 @@ class WorkerRuntime:
             execution.status = JobStatus.RUNNING.value
             execution.started_at = utcnow()
             execution.logs = "Job moved to RUNNING"
+            self._append_execution_log(db, execution, "Job moved to RUNNING")
             return execution
 
         execution = JobExecution(
@@ -265,6 +275,8 @@ class WorkerRuntime:
             logs="Job moved to RUNNING",
         )
         db.add(execution)
+        db.flush()
+        self._append_execution_log(db, execution, "Job moved to RUNNING")
         return execution
 
     def _set_running(self, job_id: int) -> Job | None:
@@ -388,6 +400,7 @@ class WorkerRuntime:
                 execution.finished_at = now
                 execution.status = JobStatus.DEAD.value if job.status == JobStatus.DEAD else JobStatus.FAILED.value
                 execution.logs = str(err)
+                self._append_execution_log(db, execution, f"Failure: {err}")
 
             job.claimed_by = None
             job.claimed_at = None

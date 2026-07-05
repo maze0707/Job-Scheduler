@@ -148,3 +148,14 @@ class JobExecution(Base):
     status = Column(String, nullable=False)
 
     job = relationship("Job", back_populates="executions")
+    attempt_logs = relationship("JobLog", back_populates="execution", cascade="all, delete-orphan")
+
+
+class JobLog(Base):
+    __tablename__ = "job_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    job_execution_id = Column(Integer, ForeignKey("job_executions.id"), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    execution = relationship("JobExecution", back_populates="attempt_logs")

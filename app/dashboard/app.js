@@ -191,19 +191,20 @@ async function loadAllData() {
   }
 
   try {
-    const [health, queuesSummary, jobsSummary, workersSummary, executionsSummary, organizationsPayload, projectsPayload, queuesPayload, jobsPayload] = await Promise.all([
+    const [health, queuesSummary, jobsSummary, workersSummary, executionsSummary, metricsPayload, organizationsPayload, projectsPayload, queuesPayload, jobsPayload] = await Promise.all([
       request("/api/dashboard/health"),
       request("/api/dashboard/queues"),
       request("/api/dashboard/jobs"),
       request("/api/dashboard/workers"),
       request("/api/dashboard/executions"),
+      request("/api/v1/metrics"),
       request("/api/users/organizations?limit=100&offset=0"),
       request("/api/users/projects?limit=100&offset=0"),
       request("/api/queues?limit=100&offset=0"),
       request("/api/jobs?limit=100&offset=0"),
     ]);
 
-    state.dashboard = { health, queuesSummary, jobsSummary, workersSummary, executionsSummary };
+    state.dashboard = { health, queuesSummary, jobsSummary, workersSummary, executionsSummary, metrics: metricsPayload };
     state.organizations = organizationsPayload?.data || [];
     state.projects = projectsPayload?.data || [];
     state.queues = queuesPayload?.data || [];
@@ -234,12 +235,35 @@ function renderAll() {
   renderAdmin();
 }
 
+async function fetchMetrics() {
+  if (!state.token) return;
+  try {
+    const metrics = await request("/api/v1/metrics");
+    state.dashboard.metrics = metrics;
+    renderOverview();
+  } catch (error) {
+    console.warn("Metrics refresh failed", error);
+  }
+}
+
+async function fetchActiveWorkers() {
+  if (!state.token) return;
+  try {
+    const workersSummary = await request("/api/dashboard/workers");
+    state.dashboard.workersSummary = workersSummary;
+    renderWorkers();
+  } catch (error) {
+    console.warn("Worker refresh failed", error);
+  }
+}
+
 function renderOverview() {
   const queueSummary = state.dashboard.queuesSummary || {};
   const jobsSummary = state.dashboard.jobsSummary || {};
   const workersSummary = state.dashboard.workersSummary || {};
   const executionsSummary = state.dashboard.executionsSummary || {};
-  const jobsByStatus = jobsSummary.by_status || {};
+  const metricsSummary = state.dashboard.metrics || {};
+  const jobsByStatus = metricsSummary.job_status_counts || jobsSummary.by_status || {};
   const recentJobs = jobsSummary.recent_jobs || [];
 
   document.getElementById("kpiQueues").textContent = queueSummary.total_queues ?? state.queues.length;
@@ -705,8 +729,9 @@ function startAutoRefresh() {
       refreshTimer = null;
       return;
     }
-    loadAllData();
-  }, 10000);
+    fetchMetrics();
+    fetchActiveWorkers();
+  }, 4000);
 }
 
 function attachEvents() {

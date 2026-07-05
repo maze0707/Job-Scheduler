@@ -9,6 +9,7 @@ from app.models import (
     DeadLetterJob,
     Job,
     JobExecution,
+    JobLog,
     Queue,
     User,
     WorkerHeartbeat,
@@ -133,6 +134,7 @@ def dashboard_executions(db: Session = Depends(get_db), current_user: User = Dep
 
 @router.delete("/cleanup")
 def cleanup_demo_data(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    deleted_logs = db.query(JobLog).delete(synchronize_session=False)
     deleted_heartbeats = db.query(WorkerHeartbeat).delete(synchronize_session=False)
     deleted_execs = db.query(JobExecution).delete(synchronize_session=False)
     deleted_dlq = db.query(DeadLetterJob).delete(synchronize_session=False)
@@ -141,6 +143,7 @@ def cleanup_demo_data(db: Session = Depends(get_db), current_user: User = Depend
     db.commit()
     return {
         "deleted_jobs": deleted_jobs,
+        "deleted_logs": deleted_logs,
         "deleted_executions": deleted_execs,
         "deleted_dlq": deleted_dlq,
         "deleted_workers": deleted_workers,

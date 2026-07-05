@@ -7,6 +7,7 @@ from app.models import (
     DeadLetterJob,
     Job,
     JobExecution,
+    JobLog,
     JobStatus,
     Organization,
     OrganizationMembership,
@@ -150,6 +151,36 @@ def test_worker_retry_and_dead_routing():
         dead = db.query(DeadLetterJob).filter(DeadLetterJob.job_id == job_id).first()
         assert dead is not None
         assert dead.queue_id == queue_id
+    finally:
+        db.close()
+
+    runtime.mark_shutdown()
+
+
+def test_worker_persists_execution_logs_on_failure():
+    queue_id = _seed_scope()
+    job_id = _create_job(queue_id, {"task": "log-fail"}, max_retries=1, retry_strategy="FIXED", priority=999)
+
+    runtime = WorkerRuntime(max_workers=1)
+    runtime.register_worker()
+    claimed = runtime.claim_job()
+    assert claimed is not None
+    assert claimed.id == job_id
+
+    runtime._execute_job(claimed)
+
+    db = SessionLocal()
+    try:
+        execution = (
+            db.query(JobExecution)
+            .filter(JobExecution.job_id == job_id)
+            .order_by(JobExecution.id.desc())
+            .first()
+        )
+        assert execution is not None
+        logs = db.query(JobLog).filter(JobLog.job_execution_id == execution.id).all()
+        assert logs
+        assert any("Simulated runtime" in entry.message for entry in logs)
     finally:
         db.close()
 

@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
 from app.main import app
 from app.database import SessionLocal
-from app.models import JobExecution, DeadLetterJob, WorkerRegistration, WorkerHeartbeat, Job
+from app.models import JobExecution, DeadLetterJob, WorkerRegistration, WorkerHeartbeat, Job, JobStatus
 import random
+import uuid
 from datetime import datetime, timezone, timedelta
 
 client = TestClient(app)
@@ -18,7 +19,7 @@ def test_health_check():
 
 
 def _signup_and_login():
-    random_id = random.randint(1000, 9999)
+    random_id = uuid.uuid4().hex[:8]
     test_email = f"testrunner_{random_id}@example.com"
     test_password = "supersecretpassword123"
 
@@ -252,6 +253,49 @@ def test_dashboard_page_contains_rebuilt_management_shell():
     assert "Organizations" in html
 
 
+def test_metrics_endpoint_returns_status_counts():
+    token = _signup_and_login()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    org_name = f"org-metrics-{random.randint(1000, 9999)}"
+    create_org = client.post("/api/users/organizations", json={"name": org_name}, headers=headers)
+    assert create_org.status_code == 201
+    org_id = create_org.json()["id"]
+
+    create_project = client.post(
+        "/api/users/projects",
+        json={"name": "metrics-project", "organization_id": org_id},
+        headers=headers,
+    )
+    assert create_project.status_code == 201
+    project_id = create_project.json()["id"]
+
+    queue_name = f"metrics-q-{random.randint(1000, 9999)}"
+    queue_create = client.post(
+        "/api/queues",
+        json={"name": queue_name, "project_id": project_id},
+        headers=headers,
+    )
+    assert queue_create.status_code == 200
+    queue_id = queue_create.json()["id"]
+
+    db = SessionLocal()
+    try:
+        db.add_all([
+            Job(payload={"task": "queued"}, queue_id=queue_id, retries_left=1, status=JobStatus.QUEUED, retry_count=0, max_retries=1, retry_strategy="FIXED"),
+            Job(payload={"task": "done"}, queue_id=queue_id, retries_left=0, status=JobStatus.COMPLETED, retry_count=0, max_retries=1, retry_strategy="FIXED"),
+        ])
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get("/api/v1/metrics", headers=headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["job_status_counts"]["QUEUED"] >= 1
+    assert payload["job_status_counts"]["COMPLETED"] >= 1
+
+
 def test_cleanup_endpoint_removes_jobs_and_related_records():
     token = _signup_and_login()
     headers = {"Authorization": f"Bearer {token}"}
@@ -285,12 +329,13 @@ def test_cleanup_endpoint_removes_jobs_and_related_records():
     assert create_job.status_code == 201
     job_id = create_job.json()["job_id"]
 
+    worker_id = f"worker-cleanup-{random.randint(1000, 9999)}"
     db = SessionLocal()
     try:
-        db.add(JobExecution(job_id=job_id, worker_id="worker-1", status="COMPLETED", logs="done"))
-        db.add(DeadLetterJob(job_id=job_id, queue_id=queue_id, payload={"task": "cleanup"}, failure_reason="bad", retry_count=1, max_retries=1, worker_id="worker-1"))
-        db.add(WorkerRegistration(worker_id="worker-1", hostname="host", pid=1, status="ACTIVE"))
-        db.add(WorkerHeartbeat(worker_id="worker-1", status="ACTIVE", note="ok"))
+        db.add(JobExecution(job_id=job_id, worker_id=worker_id, status="COMPLETED", logs="done"))
+        db.add(DeadLetterJob(job_id=job_id, queue_id=queue_id, payload={"task": "cleanup"}, failure_reason="bad", retry_count=1, max_retries=1, worker_id=worker_id))
+        db.add(WorkerRegistration(worker_id=worker_id, hostname="host", pid=1, status="ACTIVE"))
+        db.add(WorkerHeartbeat(worker_id=worker_id, status="ACTIVE", note="ok"))
         db.commit()
     finally:
         db.close()
@@ -303,8 +348,8 @@ def test_cleanup_endpoint_removes_jobs_and_related_records():
         assert db.query(Job).filter(Job.id == job_id).count() == 0
         assert db.query(JobExecution).filter(JobExecution.job_id == job_id).count() == 0
         assert db.query(DeadLetterJob).filter(DeadLetterJob.job_id == job_id).count() == 0
-        assert db.query(WorkerRegistration).filter(WorkerRegistration.worker_id == "worker-1").count() == 0
-        assert db.query(WorkerHeartbeat).filter(WorkerHeartbeat.worker_id == "worker-1").count() == 0
+        assert db.query(WorkerRegistration).filter(WorkerRegistration.worker_id == worker_id).count() == 0
+        assert db.query(WorkerHeartbeat).filter(WorkerHeartbeat.worker_id == worker_id).count() == 0
     finally:
         db.close()
 
