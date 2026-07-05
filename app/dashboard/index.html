@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Distributed Job Scheduler Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/dashboard/styles.css" />
 </head>
 <body>
@@ -12,7 +15,7 @@
       <div class="brand-block">
         <div class="brand-mark">Job.Sch</div>
         <div>
-          <h1>Job Scheduler Console</h1>
+          <h1>Console</h1>
         </div>
       </div>
 
@@ -34,8 +37,7 @@
     <div class="main-panel">
       <header class="topbar">
         <div>
-          <h2>Distributed Job Scheduler Dashboard</h2>
-          <p class="muted">Monitor queues, workers, job execution, and dead-letter activity in real time.</p>
+          <h2>Dashboard</h2>  
         </div>
         <div class="topbar-actions">
           <span id="lastUpdated" class="pill">Waiting for data</span>
@@ -110,14 +112,14 @@
                 <h3>Throughput snapshot</h3>
                 <span class="pill">Live trend</span>
               </div>
-              <canvas id="throughputChart" height="200"></canvas>
+              <canvas id="throughputChart" class="chart-canvas"></canvas>
             </article>
             <article class="card panel-card">
               <div class="card-title-row">
                 <h3>Job state mix</h3>
                 <span class="pill">Status distribution</span>
               </div>
-              <canvas id="stateChart" height="200"></canvas>
+              <canvas id="stateChart" class="chart-canvas"></canvas>
             </article>
           </div>
 
@@ -351,6 +353,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="/dashboard/app.js"></script>
 </body>
 </html>
