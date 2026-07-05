@@ -3,207 +3,354 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Job Scheduler Console</title>
+  <title>Job Scheduler Operations Console</title>
   <link rel="stylesheet" href="/dashboard/styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <h1>Job Scheduler Console</h1>
-      <p class="subtitle">Distributed Job Scheduler Dashboard</p>
-      <p class="subtitle">Manage organizations, projects, queues, and jobs through the live FastAPI backend.</p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">Job Scheduler</div>
+        <div>
+          <h1>CONSOLE</h1>
+          <p>Dashboard</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" type="button" data-view="overview">Overview</button>
+        <button class="nav-item" type="button" data-view="queues">Queue Manager</button>
+        <button class="nav-item" type="button" data-view="jobs">Job Explorer</button>
+        <button class="nav-item" type="button" data-view="workers">Workers</button>
+        <button class="nav-item" type="button" data-view="dlq">DLQ</button>
+        <button class="nav-item" type="button" data-view="admin">Administration</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span id="authBanner" class="status-chip">Not signed in</span>
+        <button id="logoutButton" class="ghost-button" type="button" hidden>Logout</button>
+      </div>
+    </aside>
+
+    <div class="main-panel">
+      <header class="topbar">
+        <div>
+          <h2>Operations Dashboard</h2>
+          <p class="subtitle">Monitor execution health, queue state, worker activity, and dead-letter traffic.</p>
+        </div>
+        <div class="topbar-actions">
+          <span id="lastUpdated" class="pill">Waiting for data</span>
+          <button id="cleanupButton" class="ghost-button" type="button">Clear demo data</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section class="card auth-card" id="authPanel">
+          <div class="card-title-row">
+            <h3>Sign in</h3>
+            <span class="pill">Authentication</span>
+          </div>
+          <form id="loginForm" class="stack">
+            <label>
+              Email
+              <input id="loginEmail" name="username" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button type="submit">Sign in</button>
+          </form>
+
+          <form id="signupForm" class="stack hidden" hidden>
+            <label>
+              Email
+              <input id="signupEmail" name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input id="signupPassword" name="password" type="password" autocomplete="new-password" required />
+            </label>
+            <button type="submit">Create account</button>
+          </form>
+
+          <div class="switch-row">
+            <button type="button" id="showLoginButton" class="link-button">Login</button>
+            <button type="button" id="showSignupButton" class="link-button">Create account</button>
+          </div>
+          <p id="authStatus" class="status">Use the form above to sign in and load the live backend data.</p>
+        </section>
+
+        <section class="view-section active" id="overviewView">
+          <div class="kpi-grid">
+            <article class="stat-card">
+              <p class="stat-label">Queues</p>
+              <h3 id="kpiQueues">0</h3>
+              <span id="kpiQueuesMeta" class="muted">active / paused</span>
+            </article>
+            <article class="stat-card">
+              <p class="stat-label">Jobs</p>
+              <h3 id="kpiJobs">0</h3>
+              <span id="kpiJobsMeta" class="muted">recent activity</span>
+            </article>
+            <article class="stat-card">
+              <p class="stat-label">Workers</p>
+              <h3 id="kpiWorkers">0</h3>
+              <span id="kpiWorkersMeta" class="muted">heartbeat status</span>
+            </article>
+            <article class="stat-card">
+              <p class="stat-label">DLQ</p>
+              <h3 id="kpiDlq">0</h3>
+              <span id="kpiDlqMeta" class="muted">dead-letter entries</span>
+            </article>
+          </div>
+
+          <div class="chart-grid">
+            <article class="card panel-card">
+              <div class="card-title-row">
+                <h3>Throughput snapshot</h3>
+                <span class="pill">Live trend</span>
+              </div>
+              <canvas id="throughputChart" height="200"></canvas>
+            </article>
+            <article class="card panel-card">
+              <div class="card-title-row">
+                <h3>Job state mix</h3>
+                <span class="pill">Status distribution</span>
+              </div>
+              <canvas id="stateChart" height="200"></canvas>
+            </article>
+          </div>
+
+          <div class="panel-grid">
+            <article class="card panel-card">
+              <div class="card-title-row">
+                <h3>Recent jobs</h3>
+                <span class="pill">latest activity</span>
+              </div>
+              <div id="overviewRecentJobs" class="resource-list compact"></div>
+            </article>
+            <article class="card panel-card">
+              <div class="card-title-row">
+                <h3>Operational summary</h3>
+                <span class="pill">derived metrics</span>
+              </div>
+              <pre id="overviewSummary" class="mono-block">{}</pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="view-section" id="queuesView">
+          <div class="card panel-card">
+            <div class="card-title-row">
+              <h3>Queue manager</h3>
+              <span class="pill">/api/queues</span>
+            </div>
+            <form id="queueForm" class="stack compact-form">
+              <div class="form-grid">
+                <label>
+                  Queue name
+                  <input id="queueNameInput" required />
+                </label>
+                <label>
+                  Project
+                  <select id="queueProjectSelect" required></select>
+                </label>
+                <label>
+                  Priority
+                  <input id="queuePriorityInput" type="number" min="1" value="1" />
+                </label>
+                <label>
+                  Concurrency
+                  <input id="queueConcurrencyInput" type="number" min="1" value="5" />
+                </label>
+                <label>
+                  Retry count
+                  <input id="queueRetryInput" type="number" min="0" value="3" />
+                </label>
+                <label>
+                  Retry strategy
+                  <select id="queueRetryStrategyInput">
+                    <option value="FIXED">FIXED</option>
+                    <option value="LINEAR">LINEAR</option>
+                    <option value="EXPONENTIAL">EXPONENTIAL</option>
+                  </select>
+                </label>
+              </div>
+              <button type="submit">Create queue</button>
+            </form>
+            <div id="queueList" class="resource-list"></div>
+          </div>
+        </section>
+
+        <section class="view-section" id="jobsView">
+          <div class="card panel-card">
+            <div class="card-title-row">
+              <h3>Job explorer</h3>
+              <span class="pill">/api/jobs</span>
+            </div>
+            <div class="toolbar-grid">
+              <label>
+                Search
+                <input id="jobSearchInput" placeholder="Search payload or id" />
+              </label>
+              <label>
+                Status
+                <select id="jobStatusFilter">
+                  <option value="">All statuses</option>
+                  <option value="SCHEDULED">Scheduled</option>
+                  <option value="QUEUED">Queued</option>
+                  <option value="CLAIMED">Claimed</option>
+                  <option value="RUNNING">Running</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="FAILED">Failed</option>
+                  <option value="DEAD">Dead</option>
+                </select>
+              </label>
+              <label>
+                Queue
+                <select id="jobQueueFilter">
+                  <option value="">All queues</option>
+                </select>
+              </label>
+              <button id="clearFiltersButton" class="ghost-button" type="button">Clear filters</button>
+            </div>
+            <div id="jobResultsSummary" class="summary-line"></div>
+            <div id="jobList" class="resource-list"></div>
+            <div class="pagination-row">
+              <button id="jobPrevButton" class="ghost-button" type="button">Previous</button>
+              <span id="jobPageLabel">Page 1</span>
+              <button id="jobNextButton" class="ghost-button" type="button">Next</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="view-section" id="workersView">
+          <div class="card panel-card">
+            <div class="card-title-row">
+              <h3>Worker monitor</h3>
+              <span class="pill">/api/dashboard/workers</span>
+            </div>
+            <div id="workerList" class="worker-grid"></div>
+          </div>
+        </section>
+
+        <section class="view-section" id="dlqView">
+          <div class="card panel-card">
+            <div class="card-title-row">
+              <h3>Dead-letter queue</h3>
+              <span class="pill">/api/dashboard/executions</span>
+            </div>
+            <div id="dlqList" class="resource-list"></div>
+          </div>
+        </section>
+
+        <section class="view-section" id="adminView">
+          <div class="panel-grid">
+            <div class="card panel-card">
+              <div class="card-title-row">
+                <h3>Organizations</h3>
+                <span class="pill">/api/users/organizations</span>
+              </div>
+              <form id="orgForm" class="stack compact-form">
+                <label>
+                  Organization name
+                  <input id="orgNameInput" required />
+                </label>
+                <button type="submit">Create organization</button>
+              </form>
+              <div id="orgList" class="resource-list"></div>
+            </div>
+            <div class="card panel-card">
+              <div class="card-title-row">
+                <h3>Projects</h3>
+                <span class="pill">/api/users/projects</span>
+              </div>
+              <form id="projectForm" class="stack compact-form">
+                <label>
+                  Project name
+                  <input id="projectNameInput" required />
+                </label>
+                <label>
+                  Organization
+                  <select id="projectOrgSelect" required></select>
+                </label>
+                <button type="submit">Create project</button>
+              </form>
+              <div id="projectList" class="resource-list"></div>
+            </div>
+          </div>
+
+          <div class="card panel-card">
+            <div class="card-title-row">
+              <h3>Jobs & batch dispatch</h3>
+              <span class="pill">/api/jobs</span>
+            </div>
+            <form id="jobForm" class="stack compact-form">
+              <div class="form-grid">
+                <label>
+                  Queue
+                  <select id="jobQueueSelect" required></select>
+                </label>
+                <label>
+                  Priority (optional)
+                  <input id="jobPriorityInput" type="number" min="0" />
+                </label>
+                <label>
+                  Run at (optional)
+                  <input id="jobRunAtInput" type="datetime-local" />
+                </label>
+                <label>
+                  Cron expression (optional)
+                  <input id="jobCronInput" />
+                </label>
+              </div>
+              <label>
+                Payload JSON
+                <textarea id="jobPayloadInput" rows="4" required>{"task":"demo"}</textarea>
+              </label>
+              <button type="submit">Create job</button>
+            </form>
+
+            <form id="batchJobForm" class="stack compact-form">
+              <label>
+                Batch payload JSON array
+                <textarea id="batchPayloadInput" rows="4" required>[{"task":1},{"task":2}]</textarea>
+              </label>
+              <label>
+                Queue
+                <select id="batchQueueSelect" required></select>
+              </label>
+              <button type="submit">Create batch jobs</button>
+            </form>
+          </div>
+        </section>
+      </main>
     </div>
-    <div class="topbar-actions">
-      <span id="authBanner" class="badge">Not signed in</span>
-      <button id="logoutButton" type="button" hidden>Logout</button>
+  </div>
+
+  <div id="drawerOverlay" class="overlay hidden"></div>
+  <aside id="jobDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <div>
+        <p class="muted">Job detail</p>
+        <h3 id="drawerTitle">Job</h3>
+      </div>
+      <button id="drawerCloseButton" class="ghost-button" type="button">Close</button>
     </div>
-  </header>
+    <div id="drawerBody" class="drawer-body"></div>
+  </aside>
 
-  <main class="layout">
-    <section class="card auth-card">
+  <div id="queueModalOverlay" class="overlay hidden"></div>
+  <div id="queueModal" class="modal hidden">
+    <div class="modal-card">
       <div class="card-title-row">
-        <h2>Sign in</h2>
-        <span class="pill">Authentication</span>
+        <h3 id="queueModalTitle">Queue settings</h3>
+        <button id="queueModalCloseButton" class="ghost-button" type="button">Close</button>
       </div>
-      <form id="loginForm" class="stack">
-        <label>
-          Email
-          <input id="loginEmail" name="username" type="email" autocomplete="email" required />
-        </label>
-        <label>
-          Password
-          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
-        </label>
-        <button type="submit">Sign in</button>
-      </form>
-
-      <form id="signupForm" class="stack" hidden>
-        <label>
-          Email
-          <input id="signupEmail" name="email" type="email" autocomplete="email" required />
-        </label>
-        <label>
-          Password
-          <input id="signupPassword" name="password" type="password" autocomplete="new-password" required />
-        </label>
-        <button type="submit">Create account</button>
-      </form>
-
-      <div class="switch-row">
-        <button type="button" id="showLoginButton" class="link-button">Login</button>
-        <button type="button" id="showSignupButton" class="link-button">Create account</button>
-      </div>
-      <p id="authStatus" class="status">Use the form above to sign in and load the backend data.</p>
-    </section>
-
-    <section class="card">
-      <div class="card-title-row">
-        <h2>Dashboard overview</h2>
-        <span id="lastUpdated" class="pill">Waiting for data</span>
-      </div>
-      <div class="inline-actions" style="margin-bottom: 10px;">
-        <button id="cleanupButton" type="button">Clear demo data</button>
-      </div>
-      <div class="stats-grid">
-        <article class="stat-card">
-          <h3>Health</h3>
-          <pre id="healthSummary">{}</pre>
-        </article>
-        <article class="stat-card">
-          <h3>Queues</h3>
-          <pre id="queuesSummary">{}</pre>
-        </article>
-        <article class="stat-card">
-          <h3>Jobs</h3>
-          <pre id="jobsSummary">{}</pre>
-        </article>
-        <article class="stat-card">
-          <h3>Workers</h3>
-          <pre id="workersSummary">{}</pre>
-        </article>
-        <article class="stat-card">
-          <h3>Executions</h3>
-          <pre id="executionsSummary">{}</pre>
-        </article>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-title-row">
-        <h2>Organizations</h2>
-        <span class="pill">/api/users/organizations</span>
-      </div>
-      <form id="orgForm" class="stack compact-form">
-        <label>
-          Organization name
-          <input id="orgNameInput" required />
-        </label>
-        <button type="submit">Create organization</button>
-      </form>
-      <div id="orgList" class="resource-list"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-title-row">
-        <h2>Projects</h2>
-        <span class="pill">/api/users/projects</span>
-      </div>
-      <form id="projectForm" class="stack compact-form">
-        <label>
-          Project name
-          <input id="projectNameInput" required />
-        </label>
-        <label>
-          Organization
-          <select id="projectOrgSelect" required></select>
-        </label>
-        <button type="submit">Create project</button>
-      </form>
-      <div id="projectList" class="resource-list"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-title-row">
-        <h2>Queues</h2>
-        <span class="pill">/api/queues</span>
-      </div>
-      <form id="queueForm" class="stack compact-form">
-        <label>
-          Queue name
-          <input id="queueNameInput" required />
-        </label>
-        <label>
-          Project
-          <select id="queueProjectSelect" required></select>
-        </label>
-        <label>
-          Priority
-          <input id="queuePriorityInput" type="number" min="1" value="1" />
-        </label>
-        <label>
-          Concurrency
-          <input id="queueConcurrencyInput" type="number" min="1" value="5" />
-        </label>
-        <label>
-          Retry count
-          <input id="queueRetryInput" type="number" min="0" value="3" />
-        </label>
-        <label>
-          Retry strategy
-          <select id="queueRetryStrategyInput">
-            <option value="FIXED">FIXED</option>
-            <option value="LINEAR">LINEAR</option>
-            <option value="EXPONENTIAL">EXPONENTIAL</option>
-          </select>
-        </label>
-        <button type="submit">Create queue</button>
-      </form>
-      <div id="queueList" class="resource-list"></div>
-    </section>
-
-    <section class="card">
-      <div class="card-title-row">
-        <h2>Jobs</h2>
-        <span class="pill">/api/jobs</span>
-      </div>
-      <form id="jobForm" class="stack compact-form">
-        <label>
-          Queue
-          <select id="jobQueueSelect" required></select>
-        </label>
-        <label>
-          Payload JSON
-          <textarea id="jobPayloadInput" rows="4" required>{"task":"demo"}</textarea>
-        </label>
-        <label>
-          Run at (optional)
-          <input id="jobRunAtInput" type="datetime-local" />
-        </label>
-        <label>
-          Cron expression (optional)
-          <input id="jobCronInput" />
-        </label>
-        <label>
-          Priority (optional)
-          <input id="jobPriorityInput" type="number" min="0" />
-        </label>
-        <button type="submit">Create job</button>
-      </form>
-
-      <form id="batchJobForm" class="stack compact-form">
-        <label>
-          Batch payload JSON array
-          <textarea id="batchPayloadInput" rows="4" required>[{"task":1},{"task":2}]</textarea>
-        </label>
-        <label>
-          Queue
-          <select id="batchQueueSelect" required></select>
-        </label>
-        <button type="submit">Create batch jobs</button>
-      </form>
-      <div id="jobList" class="resource-list"></div>
-    </section>
-  </main>
+      <div id="queueModalBody" class="modal-body"></div>
+    </div>
+  </div>
 
   <script src="/dashboard/app.js"></script>
 </body>
